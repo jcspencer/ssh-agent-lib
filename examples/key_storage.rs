@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use log::info;
 #[cfg(windows)]
-use ssh_agent_lib::agent::NamedPipeListener;
+use ssh_agent_lib::agent::NamedPipeListener as Listener;
 #[cfg(not(windows))]
-use tokio::net::UnixListener;
+use tokio::net::UnixListener as Listener;
 
 use ssh_agent_lib::agent::{Agent, Session};
 use ssh_agent_lib::proto::message::{self, Message, SignRequest};
@@ -175,25 +175,20 @@ impl Agent for KeyStorageAgent {
 }
 
 #[tokio::main]
-#[cfg(not(windows))]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(not(windows))]
     let socket = "ssh-agent.sock";
+    #[cfg(windows)]
+    let socket = r"\\.\pipe\agent";
+
     let _ = std::fs::remove_file(socket); // remove the socket if exists
 
-    KeyStorageAgent::new()
-        .listen(UnixListener::bind(socket)?)
-        .await?;
-    Ok(())
-}
-
-#[tokio::main]
-#[cfg(windows)]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // This is only used for integration tests on Windows:
+    #[cfg(windows)]
     std::fs::File::create("server-started")?;
-    // ^ You can remove this line
+
     KeyStorageAgent::new()
-        .listen(NamedPipeListener::new(r"\\.\pipe\agent".into())?)
+        .listen(Listener::bind(socket)?)
         .await?;
     Ok(())
 }
